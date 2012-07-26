@@ -97,8 +97,8 @@ def main():
     tstart=time.time()
     options=opt_validate(prepare_optparser())
     info ("We are now running IdCheck tools.")
-    idcheck=idcheck(options)
-    idcheck.putIdCheckInfo()
+    myidcheck=libIdCheck.idcheck(options)
+    myidcheck.putIdCheckInfo()
     tend =time.time()
     elapsed = (tend-tstart)/60.0
     info("Total run time is:%s mins",elapsed)

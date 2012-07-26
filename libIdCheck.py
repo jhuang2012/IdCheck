@@ -32,13 +32,21 @@ class idcheck:
         self.mapfile=options.map
         self.bamfile=options.bamfile
         self.fout=options.output.strip()
+        if self.fout[-1]!="/":
+            self.fout=self.fout+"/"
         self.ped=options.ped
         self.name=options.sampleID
-        self.rnaseqSNP=self.fout+name+"-rnaseq.map"
-        self.fseqR1=options.f
-        self.fseqR2=options.r
+        self.rnaseqSNP=self.fout+self.name+"-rnaseq.map"
+        try:
+            self.fseqR1=options.f 
+        except:
+            self.fseqR1=""
+        try:
+            self.fseqR2=options.r 
+        except:
+            self.fseqR2=""
         config = ConfigParser.ConfigParser()
-        config.read(options.cfg)
+        config.read(options.configfile)
         #parameters from configuration file.
         self.genome=config.get('Genome', 'refgenome')
         self.SequenceQA=config.get('pipeline', 'SequenceQA')
@@ -53,18 +61,27 @@ class idcheck:
         self.bwasampe=config.get('BWA', 'bwasampe')
         
         self.samstatpath=config.get('toolsPath', 'samstat')
+        
+        #IdCheck path
+        strfilepath = os.path.realpath(__file__) 
+        IdCheckPath = "%s/" % (os.path.dirname(strfilepath),)
+
+
     def putIdCheckInfo(self):
         if self.SequenceQA.lower()=='y':
-            info("Sequencing quality access:\nYes.\n")
+            info("Sequencing quality access:")
+            info(" Yes.")
             info("Sequence quality control for %s",self.fseqR1)
             qulity(self.fseqR1,self.fout)
             if self.fseqR2!="":
                 info("Sequence quality control for %s",self.fseqR2)
                 qulity(self.fseqR2,self.fout)
         else:
-            info("Sequencing quality access:\nNo.\n")
+            info("Sequencing quality access:")
+            info(" No.")
         if self.Align.lower()=='y':
-            info("Mapping the read to reference genome:\nYes.\n")
+            info("Mapping the read to reference genome:")
+            info(" Yes.")
             bwa_aln(self.bwapath,self.fseqR1,self.bwaindex,self.bwaaln,self.fout,self.name+"1")
             if self.fseqR2!="":
                 bwa_aln(self.bwapath,self.fseqR2,self.bwaindex,self.bwaaln,self.fout,self.name+"2")
@@ -72,18 +89,23 @@ class idcheck:
             else:
                 bwa_samse(self.bwapath,bwasamse,self.bwaindex,self.fseqR1,self.fout,self.name)
         else:
-            info("Mapping the read to reference genome:\nNo.\n")
+            info("Mapping the read to reference genome:")
+            info(" No.")
         if self.MapQA.lower()=='y':
-            info("Doing quality accessing of sequence mapping:\nYes.\n")
+            info("Doing quality accessing of sequence mapping:")
+            info(" Yes.")
             bamfile=self.name+".bam"
             samstat(self.samstatpath,self.fout+bamfile,self.fout)
         else:
-            info("Doing quality accessing of sequence mapping:\nNo.\n")
+            info("Doing quality accessing of sequence mapping:")
+            info(" No.")
         if self.IdCheck.lower()=='y':
-            info("Sample Identity checking:\nYes.\n")
+            info("Sample Identity checking:")
+            info(" Yes.")
             self.runIdCheck()
         else:
-            info("Sample Identity checking:\nNo.\n")
+            info("Sample Identity checking:")
+            info(" No.")
     
     def complement(self,s): 
         """Return the complementary sequence string.""" 
@@ -145,7 +167,7 @@ class idcheck:
             if self.findmatch(sp[4],["A","C","G","T"]):
                 s= self.findmatch(sp[4],["A","C","G","T"])
                 allele+=s
-            if findmatch(sp[4],[",",".","$"]):
+            if self.findmatch(sp[4],[",",".","$"]):
                 if len(allele)==0:
                     allele+=sp[2]+sp[2]+"\t0"
                 else:
@@ -175,10 +197,11 @@ class idcheck:
         fw=open(fname,"w")
         fw.write("\t".join(name.split("_")))
         fw.close()
-        cmd1="python /env/ceph/home/jhuang/bin/rnaseq/pipeline/tools/myjoin.py -F 1,2 -f 1,4 -m y -a %s -b %s |cut -f 6 > %s"\
-            % (rnaseqSNP,mapfile,tmpsnp)
+        cmd1="python %smyjoin.py -F 1,2 -f 1,4 -m y -a %s -b %s |cut -f 6 > %s"\
+            % (IdCheckPath,rnaseqSNP,mapfile,tmpsnp)
         compare=fout+name+"-compare"
-        cmd2="plink --ped %s --map %s --keep %s --extract %s --tab --recode --out %s" % (ped,mapfile,fname,tmpsnp,compare)
+        
+        cmd2="%splink --ped %s --map %s --keep %s --extract %s --tab --recode --out %s" % (IdCheckPath,ped,mapfile,fname,tmpsnp,compare)
         cmd3="rm %s" % (fname)
         cmd4="rm %s" % (tmpsnp)
         for cmd in [cmd1,cmd2,cmd3,cmd4]:   
@@ -195,8 +218,8 @@ class idcheck:
         tmp1=fout+name+"tmp1"
         cmd1="cut -f 7- %s | awk -f /env/ceph/home/jhuang/bin/rnaseq/pipeline/tools/transpose1.awk |paste %s - > %s"\
             % (ped,map,tmp)
-        cmd2="python /env/ceph/home/jhuang/bin/rnaseq/pipeline/tools/myjoin.py -F 2 -f 4 -m y -a %s -b %s |sed 's/ //g'> %s"\
-            % (rnaseq,tmp,tmp1)
+        cmd2="python %smyjoin.py -F 2 -f 4 -m y -a %s -b %s |sed 's/ //g'> %s"\
+            % (IdCheckPath,rnaseq,tmp,tmp1)
         for cmd in [cmd1,cmd2]:   
             info(cmd)
             p=subprocess.Popen(['/bin/bash', '-c', cmd])
@@ -224,7 +247,7 @@ class idcheck:
         p=subprocess.Popen(['/bin/bash', '-c', cmd])
         sts = os.waitpid(p.pid, 0)
     def runIdCheck(self):
-        mpileup(self.mapfile,self.fout,self.genome,self.rnaseqSNP,self.bamfile,self.name)
-        extractSNP(self.mapfile,self.fout,self.ped,self.rnaseqSNP,self.name)
+        self.mpileup(self.mapfile,self.fout,self.genome,self.rnaseqSNP,self.bamfile,self.name)
+        self.extractSNP(self.mapfile,self.fout,self.ped,self.rnaseqSNP,self.name)
         result=self.fout+self.name+"-res.txt"
-        compare(self.rnaseqSNP,self.fout,self.name,result)
+        self.compare(self.rnaseqSNP,self.fout,self.name,result)
